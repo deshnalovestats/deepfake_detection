@@ -32,15 +32,36 @@ def process_videos_parallel(raw_data_dir: str,
     ensure_dir(temp_frame_base_dir)
     
     video_paths = get_all_video_paths(raw_data_dir)
+    to_process = []
+    skipped = 0
+
+    for i, video_path in enumerate(video_paths):
+        video_name = os.path.basename(video_path)
+        relative_path = os.path.relpath(video_path, raw_data_dir)
+        parent_folder = os.path.dirname(relative_path)
+        
+        feature_save_dir = os.path.join(save_features_dir, parent_folder)
+        os.makedirs(feature_save_dir, exist_ok=True)
+        
+        # Check if video already processed (e.g., a feature file exists)
+        feature_file_name = os.path.splitext(os.path.basename(video_path))[0] + ".npy"
+        feature_file_path = os.path.join(feature_save_dir, feature_file_name)
+        if os.path.exists(feature_file_path):
+            skipped += 1
+            continue
+
+
+        to_process.append((i, video_path, parent_folder))
+
     total_videos = len(video_paths)
-    print(f"Found {total_videos} videos to process")
+    print(f"Found {total_videos-skipped} videos to process")
     
     # Process videos in parallel
-    with tqdm(total=total_videos, desc="Processing Videos", ncols=100) as pbar:
+    with tqdm(total=total_videos, desc="Processing Videos", ncols=100,initial=skipped) as pbar:
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_video_workers) as executor:
             futures = []
             
-            for i, video_path in enumerate(video_paths):
+            for i, video_path, parent_folder in to_process:
                 video_name = os.path.basename(video_path)
                 relative_path = os.path.relpath(video_path, raw_data_dir)
                 parent_folder = os.path.dirname(relative_path)
